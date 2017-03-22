@@ -1,0 +1,60 @@
+################ READ ME ###################################################################################
+###Purpose: Discovering Oracle Services Name and their status
+###Execution: .\oradb.ps1
+###Output file generated with XML extension in the base location
+###Version: 1DB.07
+### Known error: : NotSpecified: (:) [], PSSecurityException
+### Resolution: Un-comment the first line and try executing again
+#############################################################################################################
+
+# set-executionpolicy unrestricted
+
+
+$_HOST   = get-content env:computername
+                                                                              
+$object = Get-service -ComputerName $_HOST | where {( $_.name -like "OracleService*") } #| Export-CliXml $File
+
+if ($object)
+{
+$instDetails= $object |select MachineName,Name,Status,DisplayName
+
+$_DBLIST = get-service -Name "OracleService*" | Where-Object {$_.status -eq "Running"} | ForEach {$_.name.Replace("OracleService","")}
+
+$_OUTPUT = foreach( $_INST in $_DBLIST ) {
+
+$_HOST   = get-content env:computername
+
+$OH_RAW = reg query \\$_HOST\HKLM\Software\Oracle /s | select-string "ORACLE_HOME" 
+
+$OH = echo $OH_RAW | sort | get-unique | select-string -notmatch "ORACLE_HOME_KEY", "ORACLE_HOME_NAME", "agent10g"
+
+#Get Oracle Home Path
+$_OHD=foreach ($line in $OH) {
+        
+             
+        $split_line = -split $line
+         
+        foreach ($word in $split_line) {
+   If ("$word" -ne "ORACLE_HOME" -and "$word" -ne "REG_SZ")
+           { $_OHH=( Join-Path $word bin\oracle.exe) }
+            
+
+$_Version=((gci $_OHH  -ErrorAction SilentlyContinue | get-unique | %{ $_.VersionInfo } | ft -Property FileVersion -HideTableHeaders -AutoSize| Out-String).trim()).Replace("Production","")
+
+
+ }
+
+
+  }
+
+Write-Host $_HOST "||" $_INST "||"$_INST "||" $_Version 
+
+}
+
+
+}else
+{
+Write-Host "No oracle instance discovered"
+}
+
+
